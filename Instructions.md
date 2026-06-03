@@ -39,3 +39,12 @@ tier: Free tier
 ### 8. Schedule indexing --> select --> once
 ### 9. Review & create    
 ### 10. update env file ai search attributes
+
+## Configure Azure AI Search
+### 1. Go to -> .env -> update SEARCH_SERVICE_ENDPOINT , SEARCH_SERVICE_QUERY_KEY, SEARCH_INDEX_NAME
+
+## Create Azure AI Foundry
+### 1. Goto Microsft Foundry -> Create foundy project
+### 2. Goto Foundry Portal -> Model catalog
+### 3. Explore Model Capabilities 
+https://ai.azure.com/catalog
