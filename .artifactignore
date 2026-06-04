@@ -1,0 +1,31 @@
+# Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local secrets — never deploy
+.env
+*.env
+
+# Git metadata
+.git/
+.gitignore
+
+# Dev/test files
+tests/
+*.test.py
+pytest.ini
+.pytest_cache/
+
+# IDE files
+.vscode/
+.idea/
+
+# Local zip artifacts
+*.zip
