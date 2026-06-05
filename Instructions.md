@@ -261,3 +261,204 @@ Go to **[portal.azure.com](https://portal.azure.com)** for all steps below.
 
 4. Click **Review + Create** → **Create**
 5. After deployment finishes → click **Go to resource**
+
+### Step 4 — Configure Environment Variables
+
+1. In your Web App, go to **Settings → Environment variables** (left sidebar)
+2. Click **+ Add** for each variable below:
+
+   | Name | Value |
+   |---|---|
+   | `SEARCH_SERVICE_ENDPOINT` | `https://aieastsrch001.search.windows.net` |
+   | `SEARCH_SERVICE_QUERY_KEY` | `<your-search-query-key>` |
+   | `SEARCH_INDEX_NAME` | `search-1780140742934` |
+   | `AZURE_OPENAI_ENDPOINT` | `https://aifndry009785.cognitiveservices.azure.com/` |
+   | `AZURE_OPENAI_KEY` | `<your-openai-key>` |
+   | `AZURE_OPENAI_DEPLOYMENT` | `gpt-4.1` |
+
+3. Click **Apply** → **Confirm**
+
+> ⚠️ **Security note:** Rotate these keys after initial setup. Use Azure Key Vault references for production.
+
+---
+
+### Step 5 — Set Startup Command
+
+1. Go to **Settings → Configuration** (left sidebar)
+2. Click the **General settings** tab
+3. In the **Startup Command** field enter:
+
+   ```
+   gunicorn --bind=0.0.0.0 --workers=4 rag_app:app
+   ```
+
+4. Click **Save** → **Continue**
+
+   or Use the below command
+
+   az webapp config set --resource-group centralairg --name centralaiapp09 --startup-file "gunicorn --bind=0.0.0.0 --workers=4 rag_app:app"
+
+---
+
+### Step 6 — Enable Logging
+
+1. Go to **Monitoring → App Service logs** (left sidebar)
+2. Set **Application logging (Filesystem)** → **On**
+3. Set **Web server logging** → **File System**
+4. Click **Save**
+
+---
+
+
+
+## Part 3 — Azure DevOps CI/CD Classic Pipeline
+
+After the first manual deploy, set up automation so every `git push` triggers a build and release automatically.
+
+---
+
+### Step 9 — Create DevOps Project & Push Code
+
+1. Go to **[dev.azure.com](https://dev.azure.com)** → sign in
+2. Click **+ New project**
+
+   | Field | Value |
+   |---|---|
+   | Project name | `rag-app` |
+   | Visibility | Private |
+
+3. Click **Create**
+4. Go to **Repos → Files** → copy the **Clone URL**
+5. Push your local code:
+
+   ```bash
+   git init
+   git remote add origin <clone-url>
+   git add .
+   git commit -m "initial commit"
+   git push -u origin main
+   ```
+
+---
+
+### Step 10 — Create Service Connection
+
+This connects Azure DevOps to your Azure subscription for deployments.
+
+1. Go to **Project Settings** (bottom-left gear ⚙️ icon)
+2. Under **Pipelines** → click **Service connections**
+3. Click **+ New service connection** → choose **Azure Resource Manager**
+4. Select **Service principal (automatic)**
+5. Fill in:
+
+   | Field | Value |
+   |---|---|
+   | Scope level | Subscription |
+   | Subscription | Your subscription |
+   | Resource group | `rg-rag-app` |
+   | Service connection name | `azure-service-connection` |
+
+6. Check **Grant access permission to all pipelines**
+7. Click **Save**
+
+---
+
+### Step 11 — Classic Build Pipeline
+
+#### 11.1 — Create the Pipeline
+
+1. Go to **Pipelines → Pipelines** (left sidebar)
+2. Click **New pipeline**
+3. At the bottom click **"Use the classic editor"** ← important
+4. Source: **Azure Repos Git**
+5. Select your **Repository** and **Branch** (`main`) → click **Continue**
+6. Search for **"Python package"** template → click **Apply**
+
+#### 11.2 — Configure Agent
+
+Click **Agent job 1** and set:
+
+| Field | Value |
+|---|---|
+| Agent pool | `Azure Pipelines` |
+| Agent Specification | `ubuntu-latest` |
+
+#### 11.3 — Add Build Tasks
+
+Click **"+"** on Agent job 1 and add tasks in this order:
+
+---
+
+**Task 1 — Use Python Version**
+
+| Field | Value |
+|---|---|
+| Task | Use Python Version |
+| Version spec | `3.11` |
+| Add to PATH | ✅ checked |
+
+---
+
+**Task 2 — Install Dependencies**
+
+| Field | Value |
+|---|---|
+| Task | Command Line |
+| Display name | `Install Dependencies` |
+| Script | (see below) |
+
+```bash
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+---
+
+**Task 3 — Archive Files (Automated ZIP Creation)**
+
+> 🗜️ **This task replaces all manual ZIP creation.** It automatically packages your entire project into `app.zip` on every build — clean, consistent, and no developer action required. It respects your `.artifactignore` file to exclude unwanted files.
+
+| Field | Value |
+|---|---|
+| Task | Archive Files |
+| Root folder to archive | `$(System.DefaultWorkingDirectory)` |
+| Prepend root folder name | ❌ unchecked — files go to ZIP root, not a subfolder |
+| Archive type | `zip` |
+| Archive file to create | `$(Build.ArtifactStagingDirectory)/app.zip` |
+| Replace existing archive | ✅ checked |
+
+**What this does step by step:**
+1. Takes everything in `$(System.DefaultWorkingDirectory)` (your repo checkout)
+2. Applies `.artifactignore` exclusions (no `.env`, no `__pycache__`, no `venv/`)
+3. Creates a fresh `app.zip` in the staging directory
+4. The ZIP is then picked up by Task 4 and published as a build artifact
+5. The Release Pipeline downloads this exact ZIP and deploys it to Azure
+
+> 💡 **Variable reference:**
+> - `$(System.DefaultWorkingDirectory)` = the folder where your repo was checked out on the build agent
+> - `$(Build.ArtifactStagingDirectory)` = a temp staging folder for files to be published
+
+---
+
+**Task 4 — Publish Build Artifact**
+
+| Field | Value |
+|---|---|
+| Task | Publish Build Artifacts |
+| Path to publish | `$(Build.ArtifactStagingDirectory)` |
+| Artifact name | `drop` |
+| Artifact publish location | Azure Pipelines |
+
+#### 11.4 — Enable CI Trigger
+
+1. Click the **Triggers** tab
+2. Check **"Enable continuous integration"**
+3. Branch filter → `main`
+
+#### 11.5 — Save and Run
+
+1. Click **Save & queue** → **Save and run**
+2. Watch the build — it should complete with a green ✅
+3. The `drop` artifact (containing `app.zip`) is now published and ready
+
+---
