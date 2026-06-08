@@ -462,3 +462,197 @@ pip install -r requirements.txt
 3. The `drop` artifact (containing `app.zip`) is now published and ready
 
 ---
+
+
+# Release Stage:
+
+### Step 12 — Classic Release Pipeline
+
+#### 12.1 — Create the Pipeline
+
+1. Go to **Pipelines → Releases** (left sidebar)
+2. Click **+ New** → **New release pipeline**
+3. Search for **"Azure App Service deployment"** → click **Apply**
+4. Rename the stage from `Stage 1` to `Production`
+
+#### 12.2 — Add Build Artifact
+
+1. Click **"+ Add an artifact"** on the left side of the canvas
+2. Fill in:
+
+   | Field | Value |
+   |---|---|
+   | Source type | Build |
+   | Project | your project |
+   | Source (build pipeline) | your build pipeline |
+   | Default version | Latest |
+   | Source alias | `_drop` |
+
+3. Click **Add**
+
+#### 12.3 — Enable Continuous Deployment Trigger
+
+1. Click the **lightning bolt ⚡ icon** on the artifact
+2. Toggle **Continuous deployment trigger** → **Enabled**
+3. Branch filter → `main`
+
+> This means every successful build on `main` automatically triggers a release.
+
+#### 12.4 — Configure the Production Stage
+
+Click **"1 job, 1 task"** inside the Production stage box.
+
+**Stage-level settings (top of tasks page):**
+
+| Field | Value |
+|---|---|
+| Azure subscription | `azure-service-connection` |
+| App type | `Web App on Linux` |
+| App Service name | `rag-app-<your-unique-id>` |
+
+**Deploy Azure App Service task:**
+
+| Field | Value |
+|---|---|
+| Package or folder | `$(System.DefaultWorkingDirectory)/_drop/drop/app.zip` |
+| Runtime Stack | `PYTHON\|3.11` |
+| Startup command | `gunicorn --bind=0.0.0.0 --workers=4 rag_app:app` |
+| Deployment method | `Run From Package` |
+
+#### 12.5 — Add Smoke Test Task (Recommended)
+
+Click **"+"** → add a **Command Line** task after the deploy task:
+
+| Field | Value |
+|---|---|
+| Display name | `Smoke Test` |
+| Script | (see below) |
+
+```bash
+echo "Waiting for app to start..."
+sleep 30
+curl -f https://rag-app-<your-id>.azurewebsites.net/ || exit 1
+echo "✅ App is live and responding!"
+```
+
+#### 12.6 — Secure API Keys as Pipeline Variables
+
+Instead of hardcoding secrets in app settings:
+
+1. In the Release Pipeline → click **Variables** tab
+2. Click **+ Add** for each secret:
+
+   | Name | Value | Secured |
+   |---|---|---|
+   | `AZURE_OPENAI_KEY` | `<your-key>` | 🔒 Lock it |
+   | `SEARCH_SERVICE_QUERY_KEY` | `<your-key>` | 🔒 Lock it |
+
+3. In the **Deploy App Service task** → expand **"Application and Configuration Settings"**
+4. In the **App settings** field add:
+
+   ```
+   -AZURE_OPENAI_KEY $(AZURE_OPENAI_KEY) -SEARCH_SERVICE_QUERY_KEY $(SEARCH_SERVICE_QUERY_KEY)
+   ```
+
+#### 12.7 — Save and Create First Release
+
+1. Click **Save**
+2. Click **+ Release** → **Create a release**
+3. Select your artifact version → click **Create**
+4. Click the release link → watch the **Production** stage run
+5. Click **Logs** to see live deployment output
+
+---
+
+## End-to-End Flow
+
+```
+Developer pushes code to main branch
+            │
+            ▼
+ ┌──────────────────────┐
+ │   BUILD PIPELINE      │  (triggers automatically on push)
+ │                        │
+ │  1. Use Python 3.11    │
+ │  2. pip install -r ... │
+ │  3. Archive → app.zip  │  ← automated, no manual ZIP
+ │     (.artifactignore   │
+ │      excludes junk)    │
+ │  4. Publish artifact   │
+ └──────────┬───────────┘
+            │  artifact: drop/app.zip
+            ▼
+ ┌──────────────────────┐
+ │   RELEASE PIPELINE    │  (triggers automatically on build success)
+ │                        │
+ │  1. Download app.zip   │
+ │  2. Deploy to App Svc  │
+ │  3. Set startup cmd    │
+ │  4. Smoke test curl    │
+ └──────────┬───────────┘
+            │
+            ▼
+ ✅  https://rag-app-xxxxx.azurewebsites.net
+```
+
+**Total estimated pipeline time: ~8–12 minutes per deployment**
+
+---
+
+## Environment Variables Reference
+
+| Variable | Description | Example |
+|---|---|---|
+| `SEARCH_SERVICE_ENDPOINT` | Azure AI Search service URL | `https://aieastsrch001.search.windows.net` |
+| `SEARCH_SERVICE_QUERY_KEY` | Query key for AI Search | `b5foG0kW...` |
+| `SEARCH_INDEX_NAME` | Name of the search index | `search-1780140742934` |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI service URL | `https://aifndry009785.cognitiveservices.azure.com/` |
+| `AZURE_OPENAI_KEY` | Azure OpenAI API key | `7Ll27jB1...` |
+| `AZURE_OPENAI_DEPLOYMENT` | Model deployment name | `gpt-4.1` |
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| `500 Internal Server Error` | App crash on startup | Check **Log stream** in Azure Portal |
+| `Module not found` | Missing dependency | Verify `requirements.txt` is in project root |
+| `Application Error` after deploy | Startup command wrong | Check **General settings → Startup command** |
+| Build fails at `pip install` | Bad `requirements.txt` | Run `pip install -r requirements.txt` locally first |
+| Release pipeline can't connect | Service connection issue | Re-create service connection in Project Settings |
+| App deploys but AI Search returns no results | Wrong index name or key | Double-check environment variables in App Service |
+| ZIP deploy fails in Kudu | File locked or too large | Restart App Service, try again |
+
+**To stream live logs from the portal:**
+> Web App → **Monitoring → Log stream**
+
+---
+
+## Security Best Practices
+
+- 🔒 **Rotate API keys** after initial setup — never commit them to git
+- 🔒 **Use Azure Key Vault** references in App Settings for production secrets
+- 🔒 **Lock pipeline variables** (click the padlock icon) so keys don't appear in logs
+- 🔒 **Restrict service connection** scope to `rg-rag-app` resource group only
+- 🔒 **Enable HTTPS only** — Web App → Settings → TLS/SSL → HTTPS Only → On
+- 🔒 **Add `.env` to `.gitignore`** to prevent accidental secret commits
+
+---
+
+## Quick Reference — Portal Navigation
+
+| Task | Portal Path |
+|---|---|
+| View environment variables | Web App → Settings → Environment variables |
+| Change startup command | Web App → Settings → Configuration → General settings |
+| Stream live logs | Web App → Monitoring → Log stream |
+| View deployment history | Web App → Deployment → Deployment Center |
+| Restart the app | Web App → Overview → Restart |
+| Scale up plan | App Service Plan → Settings → Scale up |
+| View build results | Azure DevOps → Pipelines → Pipelines |
+| View release history | Azure DevOps → Pipelines → Releases |
+
+---
+
+
