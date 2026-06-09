@@ -656,3 +656,8 @@ Developer pushes code to main branch
 ---
 
 
+# MCP 
+
+### Add Azure Resource extension in VS Code
+### Add Foundry Tool kit in VSCode
+### Github Copilot Extension in VScode
