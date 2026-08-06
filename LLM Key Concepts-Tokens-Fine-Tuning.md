@@ -16,7 +16,7 @@ LLM Key Concepts, Tokens & Fine-Tuning
 | 10 (Fine-Tuning vs RAG, Hallucination)
 | 11–12 (More terms, Cheat sheet)
 
-**Transition line into Part 2:** *"We just said tokens are what you're billed for — now let's actually look at the bill."*
+**Part 2:** *"We just said tokens are what you're billed for — now let's actually look at the bill."*
 
 ---
 
@@ -29,7 +29,7 @@ LLM Key Concepts, Tokens & Fine-Tuning
 ## 🔵 FOUNDRY DEMO #2 — Context window, live 
 1. Switch to a **model card** in the Foundry model catalog.
 2. Point at the published context length field.
-**Say:** *"200K tokens isn't a slide number — it's a spec you'll check every time you pick a model for a project."*
+*:** *"200K tokens isn't a slide number — it's a spec you'll check every time you pick a model for a project."*
 
 ---
 
@@ -47,7 +47,7 @@ LLM Key Concepts, Tokens & Fine-Tuning
 | 10 (Agentic AI — tokens compound per loop) 
 | 11 (3 rules to remember)
 
-**Transition into Part 3:** *"just covered cost. Now — one of the two big levers for making a model actually behave the way you want, without paying for every token of context every time: fine-tuning."*
+** Part 3:** *"just covered cost. Now — one of the two big levers for making a model actually behave the way you want, without paying for every token of context every time: fine-tuning."*
 
 ---
 
@@ -55,7 +55,7 @@ LLM Key Concepts, Tokens & Fine-Tuning
 1. Switch to the **Chat Playground** tab again.
 2. Send one real prompt/response.
 3. Open the response's usage/metadata panel — show the actual input/output token counts Foundry reports.
-**Say:** *"Swap the deck's example numbers for these — same math, your own bill."*
+
 
 ---
 
